@@ -1,0 +1,5 @@
+node_modules/
+server/data/
+server/certs/
+server/.env
+# client/dist is committed on purpose so the app runs without a build step

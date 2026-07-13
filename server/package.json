@@ -1,0 +1,23 @@
+{
+  "name": "yemberzal-server",
+  "version": "0.1.0",
+  "description": "Yemberzal — Safe School Bus Kashmir. Backend: REST API + Socket.IO live tracking + SQLite.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "simulate": "node scripts/simulate.js",
+    "reset-db": "node -e \"require('fs').rmSync('data/yemberzal.db',{force:true}); console.log('DB deleted. It will be recreated with seed data on next start.')\""
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "selfsigned": "^2.4.1",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
+  }
+}
