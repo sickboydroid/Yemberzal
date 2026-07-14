@@ -4,6 +4,35 @@
 
 Right now, if your kid's school bus is 40 minutes late, you just stand at the pickup point and wait. Schools have no idea which of their drivers overspeed every single day, and the RTO only finds out about a rash driver after something has already gone wrong. Yemberzal puts one app on the driver's phone and gives everyone else the view they need — and *only* the view they need.
 
+## A Quick Look
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="images/live-tracking.png" alt="Live tracking view" width="100%" />
+      <br />
+      <sub><b>Live tracking</b> — the bus on its route with the traveled path, plus the speed graph colored green/amber/red against an adjustable threshold line.</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="images/fleet-students.png" alt="Fleet and students management" width="100%" />
+      <br />
+      <sub><b>Fleet & students</b> — schools add buses, create parent accounts and assign each student to a bus. Bulk onboarding via CSV import.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="images/complaints.png" alt="Complaint threads" width="100%" />
+      <br />
+      <sub><b>Complaints</b> — parents open a thread, the school chats back, and resolving it with a closing note locks the conversation.</sub>
+    </td>
+    <td width="50%" align="center">
+      <img src="images/settings-location.png" alt="Settings with school location pin" width="100%" />
+      <br />
+      <sub><b>Settings</b> — the speed limit that drives violation detection, and the school's map pin, which becomes the destination for every bus in the fleet.</sub>
+    </td>
+  </tr>
+</table>
+
 ## How it works
 
 There are four kinds of users and one web app that adapts to each:
