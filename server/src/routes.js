@@ -235,4 +235,174 @@ router.post('/complaints/:id/resolve', authRequired('school'), (req, res) => {
   res.json({ ok: true });
 });
 
+
+// ---------- school fleet & student management ----------
+const { hashPassword } = require('./auth');
+const { transaction } = require('./db');
+
+function ownBus(req, res) {
+  const bus = db.prepare('SELECT * FROM buses WHERE id=?').get(Number(req.params.id));
+  if (!bus || bus.school_id !== req.user.schoolId) { res.status(404).json({ error: 'Bus not found in your school' }); return null; }
+  return bus;
+}
+function ownParent(req, res) {
+  const u = db.prepare("SELECT * FROM users WHERE id=? AND role='parent'").get(Number(req.params.id));
+  if (!u || u.school_id !== req.user.schoolId) { res.status(404).json({ error: 'Student not found in your school' }); return null; }
+  return u;
+}
+function deleteBusDeep(busId) {
+  transaction(() => {
+    db.prepare('DELETE FROM violations WHERE bus_id=?').run(busId);
+    db.prepare('DELETE FROM alerts WHERE bus_id=?').run(busId);
+    db.prepare('DELETE FROM complaints WHERE bus_id=?').run(busId); // messages cascade
+    db.prepare('DELETE FROM trips WHERE bus_id=?').run(busId);      // points/stops cascade
+    db.prepare('UPDATE users SET bus_id=NULL WHERE bus_id=?').run(busId);
+    db.prepare('DELETE FROM buses WHERE id=?').run(busId);
+  });
+}
+
+// Parents/students of this school, with their assigned bus
+router.get('/school/parents', authRequired('school'), (req, res) => {
+  const rows = db.prepare(
+    `SELECT u.id, u.username, u.name, u.bus_id, b.plate
+     FROM users u LEFT JOIN buses b ON b.id=u.bus_id
+     WHERE u.role='parent' AND u.school_id=? ORDER BY u.name`
+  ).all(req.user.schoolId);
+  res.json(rows.map((r) => ({ id: r.id, username: r.username, name: r.name, busId: r.bus_id, plate: r.plate })));
+});
+
+router.post('/school/buses', authRequired('school'), (req, res) => {
+  const { plate, driverName, driverPhone, password } = req.body || {};
+  if (!plate?.trim() || !driverName?.trim()) return res.status(400).json({ error: 'Plate and driver name are required' });
+  if (db.prepare('SELECT id FROM buses WHERE plate=? COLLATE NOCASE').get(plate.trim())) {
+    return res.status(400).json({ error: 'A bus with this plate already exists' });
+  }
+  const school = db.prepare('SELECT * FROM schools WHERE id=?').get(req.user.schoolId);
+  const id = db.prepare(
+    `INSERT INTO buses (plate,password_hash,school_id,driver_name,driver_phone,dest_name,dest_lat,dest_lng)
+     VALUES (?,?,?,?,?,?,?,?)`
+  ).run(plate.trim().toUpperCase(), hashPassword(password?.trim() || 'driver123'), school.id,
+        driverName.trim(), driverPhone?.trim() || null, school.name, school.lat, school.lng).lastInsertRowid;
+  res.json({ ok: true, id });
+});
+
+router.put('/school/buses/:id', authRequired('school'), (req, res) => {
+  const bus = ownBus(req, res);
+  if (!bus) return;
+  const { driverName, driverPhone, password } = req.body || {};
+  if (driverName?.trim()) db.prepare('UPDATE buses SET driver_name=? WHERE id=?').run(driverName.trim(), bus.id);
+  if (driverPhone !== undefined) db.prepare('UPDATE buses SET driver_phone=? WHERE id=?').run(driverPhone?.trim() || null, bus.id);
+  if (password?.trim()) db.prepare('UPDATE buses SET password_hash=? WHERE id=?').run(hashPassword(password.trim()), bus.id);
+  res.json({ ok: true });
+});
+
+router.delete('/school/buses/:id', authRequired('school'), (req, res) => {
+  const bus = ownBus(req, res);
+  if (!bus) return;
+  if (bus.on_trip) return res.status(400).json({ error: 'Bus is on a trip — end the trip before removing it' });
+  deleteBusDeep(bus.id);
+  res.json({ ok: true });
+});
+
+router.post('/school/parents', authRequired('school'), (req, res) => {
+  const { username, name, password, busId } = req.body || {};
+  if (!username?.trim() || !name?.trim()) return res.status(400).json({ error: 'Username and student name are required' });
+  if (db.prepare('SELECT id FROM users WHERE username=?').get(username.trim())) {
+    return res.status(400).json({ error: 'This username is already taken' });
+  }
+  if (busId) {
+    const b = db.prepare('SELECT * FROM buses WHERE id=?').get(busId);
+    if (!b || b.school_id !== req.user.schoolId) return res.status(400).json({ error: 'Invalid bus' });
+  }
+  const id = db.prepare(
+    `INSERT INTO users (role,username,password_hash,name,school_id,bus_id) VALUES ('parent',?,?,?,?,?)`
+  ).run(username.trim(), hashPassword(password?.trim() || 'parent123'), name.trim(), req.user.schoolId, busId || null).lastInsertRowid;
+  res.json({ ok: true, id });
+});
+
+router.put('/school/parents/:id', authRequired('school'), (req, res) => {
+  const u = ownParent(req, res);
+  if (!u) return;
+  const { busId, name, password } = req.body || {};
+  if (busId !== undefined) {
+    if (busId) {
+      const b = db.prepare('SELECT * FROM buses WHERE id=?').get(busId);
+      if (!b || b.school_id !== req.user.schoolId) return res.status(400).json({ error: 'Invalid bus' });
+    }
+    db.prepare('UPDATE users SET bus_id=? WHERE id=?').run(busId || null, u.id);
+  }
+  if (name?.trim()) db.prepare('UPDATE users SET name=? WHERE id=?').run(name.trim(), u.id);
+  if (password?.trim()) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(password.trim()), u.id);
+  res.json({ ok: true });
+});
+
+router.delete('/school/parents/:id', authRequired('school'), (req, res) => {
+  const u = ownParent(req, res);
+  if (!u) return;
+  transaction(() => {
+    db.prepare('DELETE FROM complaints WHERE parent_id=?').run(u.id);
+    db.prepare('DELETE FROM users WHERE id=?').run(u.id);
+  });
+  res.json({ ok: true });
+});
+
+/**
+ * CSV import (client parses the file and sends JSON rows).
+ *   buses:    [{plate, driver, phone?, password?}]        — upsert by plate
+ *   students: [{username, name, plate?, password?}]       — upsert by username
+ */
+router.post('/school/import', authRequired('school'), (req, res) => {
+  const { type, rows } = req.body || {};
+  if (!Array.isArray(rows) || !['buses', 'students'].includes(type)) {
+    return res.status(400).json({ error: 'type (buses|students) and rows are required' });
+  }
+  const school = db.prepare('SELECT * FROM schools WHERE id=?').get(req.user.schoolId);
+  let created = 0, updated = 0;
+  const errors = [];
+
+  for (const [i, r] of rows.entries()) {
+    try {
+      if (type === 'buses') {
+        const plate = r.plate?.trim().toUpperCase();
+        if (!plate || !r.driver?.trim()) throw new Error('plate and driver are required');
+        const existing = db.prepare('SELECT * FROM buses WHERE plate=? COLLATE NOCASE').get(plate);
+        if (existing) {
+          if (existing.school_id !== school.id) throw new Error('plate belongs to another school');
+          db.prepare('UPDATE buses SET driver_name=?, driver_phone=? WHERE id=?').run(r.driver.trim(), r.phone?.trim() || null, existing.id);
+          if (r.password?.trim()) db.prepare('UPDATE buses SET password_hash=? WHERE id=?').run(hashPassword(r.password.trim()), existing.id);
+          updated++;
+        } else {
+          db.prepare(`INSERT INTO buses (plate,password_hash,school_id,driver_name,driver_phone,dest_name,dest_lat,dest_lng)
+                      VALUES (?,?,?,?,?,?,?,?)`)
+            .run(plate, hashPassword(r.password?.trim() || 'driver123'), school.id, r.driver.trim(), r.phone?.trim() || null, school.name, school.lat, school.lng);
+          created++;
+        }
+      } else {
+        const username = r.username?.trim();
+        if (!username || !r.name?.trim()) throw new Error('username and name are required');
+        let busId = null;
+        if (r.plate?.trim()) {
+          const b = db.prepare('SELECT * FROM buses WHERE plate=? COLLATE NOCASE').get(r.plate.trim());
+          if (!b || b.school_id !== school.id) throw new Error(`bus ${r.plate} not found in your school`);
+          busId = b.id;
+        }
+        const existing = db.prepare('SELECT * FROM users WHERE username=?').get(username);
+        if (existing) {
+          if (existing.role !== 'parent' || existing.school_id !== school.id) throw new Error('username belongs to another account');
+          db.prepare('UPDATE users SET name=?, bus_id=? WHERE id=?').run(r.name.trim(), busId, existing.id);
+          if (r.password?.trim()) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(r.password.trim()), existing.id);
+          updated++;
+        } else {
+          db.prepare(`INSERT INTO users (role,username,password_hash,name,school_id,bus_id) VALUES ('parent',?,?,?,?,?)`)
+            .run(username, hashPassword(r.password?.trim() || 'parent123'), r.name.trim(), school.id, busId);
+          created++;
+        }
+      }
+    } catch (e) {
+      errors.push(`Row ${i + 2}: ${e.message}`);
+    }
+  }
+  res.json({ ok: true, created, updated, errors });
+});
+
 module.exports = router;
