@@ -457,3 +457,48 @@ input[type="file"]::file-selector-button {
 
 /* page-head actions shouldn't stretch */
 .page-head .row { flex: none; }
+
+/* ============================================================
+   Login backdrop — "the valley wakes up": slow drifting light,
+   a Pir Panjal ridgeline and a little bus on its morning route.
+   All CSS-only; disabled automatically by prefers-reduced-motion.
+   ============================================================ */
+.login-wrap { position: relative; overflow: hidden; }
+.login-wrap .login { position: relative; z-index: 2; backdrop-filter: blur(2px); background: rgba(255,255,255,0.92); }
+
+.lg-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+
+.lg-blob {
+  position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.55;
+  animation: lg-drift 26s ease-in-out infinite alternate;
+}
+.lg-blob.b1 { width: 46vw; height: 46vw; left: -12vw; top: -18vw; background: radial-gradient(circle, #dfe7f9 0%, transparent 65%); }
+.lg-blob.b2 { width: 40vw; height: 40vw; right: -10vw; top: 4vh; background: radial-gradient(circle, #fdf3e7 0%, transparent 65%); animation-delay: -9s; animation-duration: 31s; }
+.lg-blob.b3 { width: 34vw; height: 34vw; left: 28vw; bottom: -6vw; background: radial-gradient(circle, #e9f6ef 0%, transparent 65%); animation-delay: -17s; animation-duration: 22s; }
+@keyframes lg-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(5vw, 3vh) scale(1.12); }
+}
+
+.lg-ridge { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 34vh; }
+.ridge-far  { fill: rgba(36, 69, 156, 0.07); }
+.ridge-near { fill: rgba(16, 27, 51, 0.10); }
+
+.lg-road {
+  position: absolute; left: 0; right: 0; bottom: 34px; height: 2px;
+  background: repeating-linear-gradient(90deg, rgba(16,27,51,0.22) 0 26px, transparent 26px 44px);
+  animation: lg-road-move 1.6s linear infinite;
+}
+@keyframes lg-road-move { from { background-position-x: 0; } to { background-position-x: -44px; } }
+
+.lg-bus {
+  position: absolute; bottom: 40px; left: 0; font-size: 24px; line-height: 1;
+  filter: drop-shadow(0 3px 3px rgba(16,27,51,0.25));
+  animation: lg-drive 34s linear infinite, lg-bump 0.45s ease-in-out infinite alternate;
+}
+@keyframes lg-drive { from { transform: translateX(-8vw); } to { transform: translateX(108vw); } }
+@keyframes lg-bump { from { margin-bottom: 0; } to { margin-bottom: 2.5px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-bus, .lg-road, .lg-blob { animation: none !important; }
+}

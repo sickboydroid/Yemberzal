@@ -68,6 +68,18 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="login-wrap">
+      {/* animated valley backdrop: drifting light, Pir Panjal ridgeline, a bus on its route */}
+      <div className="lg-bg" aria-hidden="true">
+        <div className="lg-blob b1" />
+        <div className="lg-blob b2" />
+        <div className="lg-blob b3" />
+        <svg className="lg-ridge" viewBox="0 0 1440 320" preserveAspectRatio="none">
+          <path className="ridge-far" d="M0,224 L110,148 L230,196 L340,120 L470,188 L600,104 L730,180 L860,128 L990,192 L1120,140 L1250,196 L1360,156 L1440,192 L1440,320 L0,320 Z" />
+          <path className="ridge-near" d="M0,264 L150,196 L290,244 L450,168 L610,236 L770,180 L930,240 L1090,190 L1250,242 L1380,204 L1440,236 L1440,320 L0,320 Z" />
+        </svg>
+        <div className="lg-road" />
+        <div className="lg-bus">🚌</div>
+      </div>
       <div className="login card">
         <div className="login-brand">
           <div className="brand-mark">🚌</div>
